@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using System.IO;
+using System;
 using UnityEngine.UI;
 
 public class InteractionManager : MonoBehaviour {
@@ -43,7 +44,7 @@ public class InteractionManager : MonoBehaviour {
     private int currentFrameNumber = 0;
     private bool manipulateFast = false;
     private bool changesMadeToFrame = false;
-    private DirectoryInfo workingDirectory;
+    private DirectoryInfo workingDirectory = null;
     private string oldAnimationFolderText;
 
     void Start () {
@@ -63,7 +64,10 @@ public class InteractionManager : MonoBehaviour {
 
     private void UpdateButtonVisibility()
     {
-        SaveNewFrameAtEndButton.gameObject.SetActive(workingDirectory.Exists);
+        if (workingDirectory != null)
+        {
+            SaveNewFrameAtEndButton.gameObject.SetActive(workingDirectory.Exists);
+        }
         OverwriteFrameButton.gameObject.SetActive(numAnimationFiles > 0); //Active if there are any files, inactive if no files exist
         NextFrameButton.gameObject.SetActive(currentFrameNumber < (numAnimationFiles - 1)); //Active if not at the end frame
         PreviousFrameButton.gameObject.SetActive(currentFrameNumber != 0); //Active if not at beginning frame
@@ -92,6 +96,8 @@ public class InteractionManager : MonoBehaviour {
             {
                 animationFilePaths.Add(fileInfoList[i].FullName);
             }
+
+            LoadFrameFromFile(currentFrameNumber);
         }
         else
         {
@@ -129,6 +135,10 @@ public class InteractionManager : MonoBehaviour {
         }
     }
 
+    //NEED TO MAKE NextFrameButtonPress METHOD!!!!!
+    //NEED TO MAKE NextFrameButtonPress METHOD!!!!!
+    //NEED TO MAKE NextFrameButtonPress METHOD!!!!!
+
     public void SaveNewFrameAtEnd()  //invoked when SaveNewFrameAtEnd Button is pressed
     {
         SaveCurrentChangesToFrameFile(numAnimationFiles);
@@ -151,9 +161,146 @@ public class InteractionManager : MonoBehaviour {
 
     private void LoadFrameFromFile(int FrameNumberToLoad)
     {
-        //todo: make this method by reading in file contents and creating objects and setting their properties accordingly
         DeleteAllExistingObjects();
-        string allFileContents = File.ReadAllText(animationFilePaths[FrameNumberToLoad]);
+        numShapes = 0;
+
+        bool loadFrameError = false;
+        string allFileContents;
+        string[] arrayOfObjects, parametersForEachObject;
+        int delayToNextFrame = 0;
+   
+        allFileContents = "";
+        try
+        {
+            allFileContents = File.ReadAllText(animationFilePaths[FrameNumberToLoad]);
+        }
+        catch (Exception e)
+        {
+            loadFrameError = true;
+            SetErrorText("FILE ERROR LOADING FRAME #" + FrameNumberToLoad.ToString());
+            Debug.LogException(e, this);
+        }
+
+        if ((allFileContents != "") && (!loadFrameError))
+        {
+            arrayOfObjects = allFileContents.Split("***************".ToCharArray());
+            delayToNextFrame = PullIntValueWithStringKeyFromStringBody(":msdelaytonextframe", arrayOfObjects);
+            msDelayToNextFrame.text = delayToNextFrame.ToString();
+
+            for (int objectNum = 1; objectNum < arrayOfObjects.Length; objectNum++)  //start at 1 b/c 0 is the framedelay string
+            {
+                if ((arrayOfObjects[objectNum].Length > 1) && (!loadFrameError))  //if not an empty line from the previous parse
+                {
+                    parametersForEachObject = arrayOfObjects[objectNum].Split(System.Environment.NewLine.ToCharArray());
+                    string shapeType = "";
+                    int shapeNumber = 0;
+                    float positionX = 0.0f;
+                    float positionY = 0.0f;
+                    float positionZ = 0.0f;
+                    float rotationX = 0.0f;
+                    float rotationY = 0.0f;
+                    float rotationZ = 0.0f;
+                    float rotationW = 0.0f;
+                    float localScaleX = 0.0f;
+                    float localScaleY = 0.0f;
+                    float localScaleZ = 0.0f;
+
+                    try
+                    {
+                        shapeType = PullStringValueWithStringKeyFromStringBody(":shapetype", parametersForEachObject);
+                        shapeNumber = PullIntValueWithStringKeyFromStringBody(":shapenumber", parametersForEachObject);
+                        positionX = PullFloatValueWithStringKeyFromStringBody(":positionx", parametersForEachObject);
+                        positionY = PullFloatValueWithStringKeyFromStringBody(":positiony", parametersForEachObject);
+                        positionZ = PullFloatValueWithStringKeyFromStringBody(":positionz", parametersForEachObject);
+                        rotationX = PullFloatValueWithStringKeyFromStringBody(":rotationx", parametersForEachObject);
+                        rotationY = PullFloatValueWithStringKeyFromStringBody(":rotationy", parametersForEachObject);
+                        rotationZ = PullFloatValueWithStringKeyFromStringBody(":rotationz", parametersForEachObject);
+                        rotationW = PullFloatValueWithStringKeyFromStringBody(":rotationw", parametersForEachObject);
+                        localScaleX = PullFloatValueWithStringKeyFromStringBody(":localScalex", parametersForEachObject);
+                        localScaleY = PullFloatValueWithStringKeyFromStringBody(":localScaley", parametersForEachObject);
+                        localScaleZ = PullFloatValueWithStringKeyFromStringBody(":localScalez", parametersForEachObject);
+                    }
+                    catch (Exception e)
+                    {
+                        loadFrameError = true;
+                        SetErrorText("MALFORMED PARAMETERS IN FRAME FILE!");
+                        Debug.LogException(e, this);
+                    }
+
+                    if (!loadFrameError)
+                    {
+                        if (shapeType == "cube")
+                        {
+                            if (numShapes == shapeNumber)  //shapenumber accounting between file and numShapes holder
+                            {
+                                numShapes++;
+                                shapeTypeList.Add(shapeType);
+                                shapeList.Add(GameObject.CreatePrimitive(PrimitiveType.Cube));
+                                shapeList[numShapes - 1].name = (numShapes - 1).ToString();
+                                shapeList[numShapes - 1].transform.position = new Vector3(positionX, positionY, positionZ);
+                                shapeList[numShapes - 1].transform.rotation = new Quaternion(rotationX, rotationY, rotationZ, rotationW);
+                                shapeList[numShapes - 1].transform.localScale = new Vector3(localScaleX, localScaleY, localScaleZ);
+                                print("Shape number " + (numShapes - 1).ToString() + " added");
+                            }
+                            else
+                            {
+                                loadFrameError = true;
+                                SetErrorText("Shape num mismatch found in frame! (shape#" + shapeNumber.ToString() + "should be #" + numShapes.ToString() + ")");
+                            }
+                        }
+                        else
+                        {
+                            loadFrameError = true;
+                            SetErrorText("Unsupported shape type found in frame! (shape#" + shapeNumber.ToString() + ")");
+                        }
+                    }
+                }
+            }
+        }        
+    }
+
+    int PullIntValueWithStringKeyFromStringBody(string stringKey, string[] entireStringBody)
+    {
+        int parameterIndex = FindIndexInParameterArrayWithStringKey(stringKey, entireStringBody);
+        //Find which parameter line contains the stringkey you're looking for
+
+        return int.Parse(entireStringBody[parameterIndex].Substring(0, entireStringBody[parameterIndex].IndexOf(stringKey)));
+        //pull and return the number that occurs before the string key on that particular line of the file
+    }
+
+    string PullStringValueWithStringKeyFromStringBody(string stringKey, string[] entireStringBody)
+    {
+        int parameterIndex = FindIndexInParameterArrayWithStringKey(stringKey, entireStringBody);
+        //Find which parameter line contains the stringkey you're looking for
+
+        return entireStringBody[parameterIndex].Substring(0, entireStringBody[parameterIndex].IndexOf(stringKey));
+        //pull and return the string that occurs before the string key on that particular line of the file
+    }
+
+    float PullFloatValueWithStringKeyFromStringBody(string stringKey, string[] entireStringBody)
+    {
+        int parameterIndex = FindIndexInParameterArrayWithStringKey(stringKey, entireStringBody);
+        //Find which parameter line contains the stringkey you're looking for
+
+        return float.Parse(entireStringBody[parameterIndex].Substring(0, entireStringBody[parameterIndex].IndexOf(stringKey)));
+        //pull and return the number that occurs before the string key on that particular line of the file
+    }
+
+    int FindIndexInParameterArrayWithStringKey(string stringKey, string[] objectParameterArray)
+    {
+        //each index in objectParameterArray is a single line in the file
+        //Find and return which line contains the stringkey you're looking for
+
+        int indexOfKey;
+        for (int i = 0; i < objectParameterArray.Length; i++)
+        {
+            indexOfKey = (objectParameterArray[i].IndexOf(stringKey));
+            if (indexOfKey > -1)
+            {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private void DeleteAllExistingObjects()
@@ -205,7 +352,7 @@ public class InteractionManager : MonoBehaviour {
             shapeList.Add(GameObject.CreatePrimitive(PrimitiveType.Cube));
             shapeList[numShapes - 1].name = (numShapes - 1).ToString();
             shapeList[numShapes - 1].transform.position = new Vector3(0, 1, 0);
-            print("Shape number " + numShapes.ToString() + " added");
+            print("Shape number " + (numShapes-1).ToString() + " added");
         }
     }
 
@@ -596,27 +743,28 @@ public class InteractionManager : MonoBehaviour {
         }
         else
         {
-            holderString = holderString + "msdelaytonextframe:" + int.Parse(msDelayToNextFrame.text) + System.Environment.NewLine;
+            holderString = holderString + int.Parse(msDelayToNextFrame.text) + ":msdelaytonextframe" + System.Environment.NewLine;
             for (int i = 0; i < numShapes; i++)
             {
                 holderString = holderString + "***************" + System.Environment.NewLine;
-                holderString = holderString + "shapenumber:" + i.ToString() + System.Environment.NewLine;
-                holderString = holderString + "shapetype:" + shapeTypeList[i] + System.Environment.NewLine;
+                holderString = holderString + shapeTypeList[i] + ":shapetype" + System.Environment.NewLine;
+                holderString = holderString + i.ToString() + ":shapenumber" + System.Environment.NewLine;
                 holderTransform = shapeList[i].transform;
-                holderString = holderString + "positionx:" + holderTransform.position.x.ToString() + System.Environment.NewLine;
-                holderString = holderString + "positiony:" + holderTransform.position.y.ToString() + System.Environment.NewLine;
-                holderString = holderString + "positionz:" + holderTransform.position.z.ToString() + System.Environment.NewLine;
+                holderString = holderString + holderTransform.position.x.ToString() + ":positionx" +  System.Environment.NewLine;
+                holderString = holderString + holderTransform.position.y.ToString() + ":positiony" + System.Environment.NewLine;
+                holderString = holderString + holderTransform.position.z.ToString() + ":positionz" + System.Environment.NewLine;
 
-                holderString = holderString + "rotationx:" + holderTransform.rotation.x.ToString() + System.Environment.NewLine;
-                holderString = holderString + "rotationy:" + holderTransform.rotation.y.ToString() + System.Environment.NewLine;
-                holderString = holderString + "rotationz:" + holderTransform.rotation.z.ToString() + System.Environment.NewLine;
-                holderString = holderString + "rotationw:" + holderTransform.rotation.w.ToString() + System.Environment.NewLine;
+                holderString = holderString + holderTransform.rotation.x.ToString() + ":rotationx" +  System.Environment.NewLine;
+                holderString = holderString + holderTransform.rotation.y.ToString() + ":rotationy" + System.Environment.NewLine;
+                holderString = holderString + holderTransform.rotation.z.ToString() + ":rotationz" + System.Environment.NewLine;
+                holderString = holderString + holderTransform.rotation.w.ToString() + ":rotationw" + System.Environment.NewLine;
 
-                holderString = holderString + "localScalex:" + holderTransform.localScale.x.ToString() + System.Environment.NewLine;
-                holderString = holderString + "localScaley:" + holderTransform.localScale.y.ToString() + System.Environment.NewLine;
-                holderString = holderString + "localScalez:" + holderTransform.localScale.z.ToString() + System.Environment.NewLine;
-                holderString = holderString + "***************" + System.Environment.NewLine;
-                holderString = holderString + System.Environment.NewLine;
+                holderString = holderString + holderTransform.localScale.x.ToString() + ":localScalex" + System.Environment.NewLine;
+                holderString = holderString + holderTransform.localScale.y.ToString() + ":localScaley" + System.Environment.NewLine;
+                holderString = holderString + holderTransform.localScale.z.ToString() + ":localScalez" + System.Environment.NewLine;
+                
+                //holderString = holderString + "***************" + System.Environment.NewLine;
+                //holderString = holderString + System.Environment.NewLine;
             }
         }
         
