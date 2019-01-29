@@ -135,27 +135,48 @@ public class InteractionManager : MonoBehaviour {
         }
     }
 
-    //NEED TO MAKE NextFrameButtonPress METHOD!!!!!
-    //NEED TO MAKE NextFrameButtonPress METHOD!!!!!
-    //NEED TO MAKE NextFrameButtonPress METHOD!!!!!
-
+    public void NextFrameButtonPress()
+    {
+        if (changesMadeToFrame)
+        {
+            SetErrorText("CLICK SAVE BUTTONS OR LOSE CHANGES NEXT TIME!");
+            changesMadeToFrame = false;
+        }
+        else
+        {
+            if (currentFrameNumber < (numAnimationFiles - 1))
+            {
+                currentFrameNumber++;
+                LoadFrameFromFile(currentFrameNumber);
+            }
+            else
+            {
+                SetErrorText("ERROR: NOT ABLE TO MOVE TO NEXT FRAME!");
+            }
+        }
+    }
+    
     public void SaveNewFrameAtEnd()  //invoked when SaveNewFrameAtEnd Button is pressed
     {
         SaveCurrentChangesToFrameFile(numAnimationFiles);
     }
 
+    public void OverwriteCurrentFrame()  //invoked when Overwrite Frame Button is pressed
+    {
+        SaveCurrentChangesToFrameFile(currentFrameNumber);
+    }
+
     private void SaveCurrentChangesToFrameFile(int framenumber)
     {
         string filePath = Application.dataPath + "/Animation/" + animationFolderInput.text + "/" + framenumber.ToString() + ".txt";
-        if (!File.Exists(filePath))
+        //if (!File.Exists(filePath))
+        
+        string textToWrite = GetStringOfAllObjectInfo();
+        if (textToWrite != "ERROR")
         {
-            string textToWrite = GetStringOfAllObjectInfo();
-            if (textToWrite != "ERROR")
-            {
-                File.WriteAllText(filePath, textToWrite);   // Creates the file
-                UpdateAnimationFiles();
-                changesMadeToFrame = false;
-            }
+            File.WriteAllText(filePath, textToWrite);   // Creates the file
+            UpdateAnimationFiles();
+            changesMadeToFrame = false;
         }
     }
 
@@ -309,7 +330,7 @@ public class InteractionManager : MonoBehaviour {
         DeleteAllSelectedObjects();
     }
 
-    private void SelectAllObjects()
+    public void SelectAllObjects()
     {
         ClearClickedObjectBuffer();
         for (int i=0;i<numShapes;i++)
@@ -772,3 +793,4 @@ public class InteractionManager : MonoBehaviour {
     }
 
 }
+//....
