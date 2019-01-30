@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -18,6 +18,7 @@ public class InteractionManager : MonoBehaviour {
     public InputField animationFolderInput;
     public InputField msDelayToNextFrame;
     public Text folderNotExistTextElement;
+    public Text currentFrameNumberTextElement;
     public Button clearNoticeButton;
     public Button SaveNewFrameAtEndButton;
     public Button OverwriteFrameButton;
@@ -46,6 +47,7 @@ public class InteractionManager : MonoBehaviour {
     private bool changesMadeToFrame = false;
     private DirectoryInfo workingDirectory = null;
     private string oldAnimationFolderText;
+    private int numTicksKeyHeldDown = 0;
 
     void Start () {
         SaveNewFrameAtEndButton.gameObject.SetActive(false);
@@ -55,6 +57,7 @@ public class InteractionManager : MonoBehaviour {
 	}
 	
 	void Update () {
+        currentFrameNumberTextElement.text = currentFrameNumber.ToString();
         UpdateButtonVisibility();
         EventHandleSpaceBarPress();
         EventHandleLeftMouseClick();
@@ -174,6 +177,11 @@ public class InteractionManager : MonoBehaviour {
         string textToWrite = GetStringOfAllObjectInfo();
         if (textToWrite != "ERROR")
         {
+            if (File.Exists(filePath))
+            {
+                print("File already exists, deleting");
+                File.Delete(filePath);
+            }
             File.WriteAllText(filePath, textToWrite);   // Creates the file
             UpdateAnimationFiles();
             changesMadeToFrame = false;
@@ -344,7 +352,7 @@ public class InteractionManager : MonoBehaviour {
         }
     }
 
-    public void ToggleManipulateSpeed()
+    public void ToggleManipulateSpeed()  //used to be for "ManipSpeed" toggle button on the UI. Not used anymore. Keys are now held down to change the manipulate speed.  See the beginning of ManipulateSelectedObjects()
     {
         manipulateFast = !manipulateFast;
     }
@@ -373,17 +381,56 @@ public class InteractionManager : MonoBehaviour {
             shapeList.Add(GameObject.CreatePrimitive(PrimitiveType.Cube));
             shapeList[numShapes - 1].name = (numShapes - 1).ToString();
             shapeList[numShapes - 1].transform.position = new Vector3(0, 1, 0);
-            print("Shape number " + (numShapes-1).ToString() + " added");
+            //print("Shape number " + (numShapes-1).ToString() + " added");
+        }
+    }
+
+    public void DuplicateSelectedObjects()
+    {
+        for (int i = 0; i < numShapesSelected; i++)
+        {
+            GameObject newestCreatedObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            numShapes++;
+            shapeTypeList.Add("cube");
+            shapeList.Add(newestCreatedObject);
+            shapeList[numShapes - 1].name = (numShapes - 1).ToString();
+            shapeList[numShapes - 1].transform.position = objectsTransform[i].position;
+            shapeList[numShapes - 1].transform.rotation = objectsTransform[i].rotation;
+            shapeList[numShapes - 1].transform.localScale = objectsTransform[i].localScale;
+            print("Duped object #:" + i.ToString());
+
+            //AddObjectToSelectedList(newestCreatedObject);  //it is WAY simpler for me to not select the duplicates but just leave only the originals selected to be changed, hence why I commented this line out.  This will make the frame txt file less consistent, but reversing this would take a serious overhaul that's not very important right now
+
         }
     }
 
     void ManipulateSelectedObjects()
     {
+        if (AreManipulationKeysHeldDown())
+        {
+            numTicksKeyHeldDown++;
+        }
+        if (WereManipulationKeysReleased())
+        {
+            numTicksKeyHeldDown = 0;
+        }
+        if (numTicksKeyHeldDown > 30)
+        {
+            manipulateFast = true;
+        }
+        else
+        {
+            manipulateFast = false;
+        }
+
         if ((TransformofObjectClicked != null) && (objectSelected.name != "Terrain"))
         {
             if (manipulateFast)
             {
-                ManipulateObjectsQuickly();
+                if (numTicksKeyHeldDown % 2 == 0)  //slow down object movement here by a factor of 2
+                {
+                    ManipulateObjectsQuickly();
+                }
             }
             else
             {
@@ -395,6 +442,16 @@ public class InteractionManager : MonoBehaviour {
                 objectsTransform[i].localScale = new Vector3(Mathf.Abs(objectsTransform[i].localScale.x), Mathf.Abs(objectsTransform[i].localScale.y), Mathf.Abs(objectsTransform[i].localScale.z));  //ensure that scale values don't go negative. strange stuff happens if that were allowed.
             }
         }
+    }
+
+    bool WereManipulationKeysReleased()
+    {
+        return (Input.GetKeyUp("w") || Input.GetKeyUp("a") || Input.GetKeyUp("s") || Input.GetKeyUp("d") || Input.GetKeyUp("q") || Input.GetKeyUp("e") || Input.GetKeyUp(KeyCode.RightArrow) || Input.GetKeyUp(KeyCode.LeftArrow) || Input.GetKeyUp(KeyCode.UpArrow) || Input.GetKeyUp(KeyCode.DownArrow) || Input.GetKeyUp(KeyCode.PageUp) || Input.GetKeyUp(KeyCode.PageDown));
+    }
+
+    bool AreManipulationKeysHeldDown()
+    {
+        return (Input.GetKey("w") || Input.GetKey("a") || Input.GetKey("s") || Input.GetKey("d") || Input.GetKey("q") || Input.GetKey("e") || Input.GetKey(KeyCode.RightArrow) || Input.GetKey(KeyCode.LeftArrow) || Input.GetKey(KeyCode.UpArrow) || Input.GetKey(KeyCode.DownArrow) || Input.GetKey(KeyCode.PageUp) || Input.GetKey(KeyCode.PageDown));
     }
 
     void EventHandleDeleteKeyPress()
@@ -517,8 +574,15 @@ public class InteractionManager : MonoBehaviour {
         }
     }
 
-    void AddObjectToSelectedList()
+    void AddObjectToSelectedList(GameObject objectToAdd = null)
     {
+        if (objectToAdd != null)  //object is being passed in, it's not in the left click buffer variables already! we must add the object to that click buffer first
+        {
+            objectSelected = objectToAdd;
+            TransformofObjectClicked = objectToAdd.transform;
+            objectRender = objectToAdd.GetComponent<Renderer>();
+            objectOldColor = objectRender.material.color;
+        }
         objectsTransform.Add(TransformofObjectClicked);
         objectsSelected.Add(objectSelected);
         objectsRender.Add(objectRender);
@@ -793,4 +857,16 @@ public class InteractionManager : MonoBehaviour {
     }
 
 }
-//....
+
+//known todos:
+//todo: DUPLICATE WORKS WITH A NEW SCENE, BUT LOADING JUMP AND DUPING AN OBJECT DOESNT WORK THEN?!?!?!?
+//todo: DELETING AN OBJECT DOESNT COUNT AS CHANGING THE FRAME?!?! FIX THAT!
+//todo: some kind of bug happening after saving new frame at end?
+//todo:  need to be able to duplicate selected objects
+//todo: figure out how to organize all of these methods by some standardized Unity way so that this script/project doesn't become unmanageable
+//todo: code for creating new object is NOT CLEAN! it's now done in 3 different places: loadobjectsfornewframe, duplicateselectedobjects, and  handlespacebarpress methods  IF YOU EVER WANT TO TRANSITION TO DOING QUADS, YOU'll PROBABLY WANT TO CLEAN THIS UP SO THAT YOURE HANDLING IT IN ONE PLACE ONLY INSTEAD OF 3!!!
+
+//tenative done pile
+//todo:  DIDTHIS, added stuff to ManipulateSelectedObjects();  key held down system needs to transition to GetKey when key is held down for X ms and then back to GetKeyDown when key released
+//updated frame number text to actually grab/display current frame number integer
+//FIXED. SAVES FRAME BUT HAS LINGERING BUG WHEN CLICKED  overwrite frame button doesn't seem to work
