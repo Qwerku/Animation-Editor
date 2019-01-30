@@ -58,7 +58,7 @@ public class CameraController : MonoBehaviour
         }
 
         cameraDistance -= Input.GetAxisRaw("Mouse ScrollWheel");
-        print("Cameradist: " + cameraDistance.ToString());
+        //print("Cameradist: " + cameraDistance.ToString());
         transform.Translate(new Vector3(0.0f, 0.0f, Input.GetAxisRaw("Mouse ScrollWheel")));
 
     }
